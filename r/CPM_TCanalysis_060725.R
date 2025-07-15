@@ -1,6 +1,6 @@
 #### load cpm masks ####
-pos_mask_tc = read.csv("./cpm/net_masks/pos_mask_modage.csv", header=F)
-neg_mask_tc = read.csv("./cpm/net_masks/neg_mask_modage.csv", header=F)
+pos_mask_tc = read.csv("../net_masks/pos_mask_modage.csv", header=F)
+neg_mask_tc = read.csv("../net_masks/neg_mask_modage.csv", header=F)
 
 # create matrix of just the upper triangle
 pos_edges_tc = data.frame(which(pos_mask_tc == 1 & upper.tri(pos_mask_tc, diag = FALSE), arr.ind = TRUE))
@@ -9,7 +9,7 @@ colnames(pos_edges_tc) = c("col1","col2")
 colnames(neg_edges_tc) = c("col1","col2")
 
 # load labels 
-labels = read.csv("./misc/xilin_liz_combined.csv")
+labels = read.csv("./xilin_liz_combined.csv")
 # put labels with sig edges
 net_map = setNames(labels$net_names, labels$node)
 roi_map = setNames(labels$BA_othername, labels$node)

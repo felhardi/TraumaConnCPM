@@ -256,3 +256,35 @@ ggplot(result, aes(x = reorder(edge, mean_diff), y = mean_diff)) +
   coord_flip() + theme_classic() + theme(axis.text.y = element_blank()) +
   labs(x = "Positive network edge",
        y = "Mean Difference (Cort - Placebo)")
+
+#### cort and PANAS levels between conditions
+cortmem_panas = read.csv("./cortmem_panas_longformat.csv")
+cortmem_panas$panas_change_neg = cortmem_panas$PANAS_neg_postscan - cortmem_panas$PANAS_neg_prescan
+cortmem_cort = read.csv("./CortMem_cortisol_data_allsub.csv")
+cortmem_cort = cortmem_cort %>% filter(desc==" Post_drug" | desc==" baseline") %>% select(Subject, Condition, desc, Avg) %>% 
+  pivot_wider(names_from = desc, values_from = Avg)
+cortmem_cort$cort_change = (cortmem_cort$` Post_drug`) - (cortmem_cort$` baseline`)
+cortmem_cort %>% group_by(Condition) %>% summarize(round(mean(cort_change, na.rm=T),2), round(sd(cort_change, na.rm=T),2))
+t.test((cortmem_cort %>% filter(Condition=="Cortisol"))$cort_change, (cortmem_cort %>% filter(Condition=="Placebo"))$cort_change, paired=T)
+
+panas_cortmem = 
+  cortmem_panas %>% 
+  mutate(Pill = if_else(Pill == "Placebo", "Placebo", Pill)) %>%
+  ggplot(aes(x = Pill, y = PANAS_neg_prescan, fill=Pill, color=Pill)) + 
+  geom_boxplot(position = position_dodge(width = 0.9), width = 0.7, 
+               size = 0.75, outlier.shape = NA) +  # Boxplot with thicker outline and no outliers
+  scale_fill_manual(values=c("Placebo" = "white", "Cortisol" = "#5F5091")) + # White fill for "Placebo"
+  scale_color_manual(values=c("Placebo" = "#5F5091", "Cortisol" = "#5F5091")) + # Purple outline for both
+  geom_point(position = position_jitter(width = 0.15), alpha = 0.2, size=1) + 
+  labs(x="Condition", y="Negative Affect") + theme_classic() + theme(legend.position="none")
+cort_cortmem =
+  cortmem_cort %>% 
+  mutate(Condition = if_else(Condition == "Placebo", "Placebo", Condition)) %>%  # No leading space here
+  ggplot(aes(x = Condition, y = cort_change, fill=Condition, color=Condition)) + 
+  geom_boxplot(position = position_dodge(width = 0.9), width = 0.7, 
+               size = 0.75, outlier.shape = NA) +  # Boxplot with thicker outline and no outliers
+  scale_fill_manual(values=c("Placebo" = "white", "Cortisol" = "#5F5091")) + # White fill for "Placebo"
+  scale_color_manual(values=c("Placebo" = "#5F5091", "Cortisol" = "#5F5091")) + # Purple outline for both
+  geom_point(position = position_jitter(width = 0.15), alpha = 0.15, size=1) + 
+  labs(x="Condition", y=expression(Delta~"Cortisol Levels (" * mu * "g/dL)")) + theme_classic() + theme(legend.position="none")
+ggarrange(panas_cortmem, cort_cortmem, ncol=2, nrow=1)

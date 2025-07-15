@@ -1,7 +1,7 @@
 ### apply the TC pos mask to the SL data ###
 # mask
-pos_mask_tc = read.csv("./cpm/net_masks/pos_mask_modage.csv", header=F)
-neg_mask_tc = read.csv("./cpm/net_masks/neg_mask_modage.csv", header=F)
+pos_mask_tc = read.csv("../net_masks/pos_mask_modage.csv", header=F)
+neg_mask_tc = read.csv("../net_masks/neg_mask_modage.csv", header=F)
 
 # create matrix of just the upper triangle
 pos_edges_tc = data.frame(which(pos_mask_tc == 1 & upper.tri(pos_mask_tc, diag = FALSE), arr.ind = TRUE))
@@ -9,7 +9,7 @@ neg_edges_tc = data.frame(which(neg_mask_tc == 1 & upper.tri(neg_mask_tc, diag =
 colnames(pos_edges_tc) = c("col1","col2")
 colnames(neg_edges_tc) = c("col1","col2")
 # load labels 
-labels = read.csv("./misc/xilin_liz_combined.csv")
+labels = read.csv("./xilin_liz_combined.csv")
 # put labels with sig edges
 net_map = setNames(labels$net_names, labels$node)
 roi_map = setNames(labels$BA_othername, labels$node)
@@ -85,6 +85,7 @@ block3_neg$neg_edgestr_block3 = rowMeans(block3_neg)
 block4_neg$neg_edgestr_block4 = rowMeans(block4_neg)
 
 # create a combined data frame with all the summary edge
+subid_sl = read.csv("./subid_sl.csv")
 avgedge_allblocks_tc =
   as.data.frame(cbind(subid_sl,
                       block1_pos$pos_edgestr_block1, block2_pos$pos_edgestr_block2, block3_pos$pos_edgestr_block3, block4_pos$pos_edgestr_block4,
@@ -96,7 +97,7 @@ avgedge_allblocks_tc = avgedge_allblocks_tc %>% mutate_at(c(1:9), as.numeric)
 
 ### look by condition ### 
 # extract the subject IDs from sub_data_sl and format them to match SL_cond
-SL_cond = read.csv("./misc/SL_stresscon.csv")
+SL_cond = read.csv("./SL_stresscon.csv")
 SL_cond$sub = as.numeric(substring(SL_cond$StressLearn_ID, 2,4))
 trauma = read.csv("./trauma.csv")
 motion = read.csv("./motion.csv")
@@ -122,6 +123,17 @@ summary(lm(pos_b2 ~ Group + sex + motion + scan, avgedge_allblocks_tc))
 summary(lm(pos_b3 ~ Group + sex + motion + scan, avgedge_allblocks_tc))
 summary(lm(pos_b4 ~ Group + sex + motion + scan, avgedge_allblocks_tc))
 p.adjust(c(0.263, 0.00518, 0.168, 0.0389), method = "fdr")
+
+# negative network
+summary(lm(neg_b1 ~ Group + sex + motion + scan, avgedge_allblocks_tc))
+summary(lm(neg_b2 ~ Group + sex + motion + scan, avgedge_allblocks_tc))
+summary(lm(neg_b3 ~ Group + sex + motion + scan, avgedge_allblocks_tc))
+summary(lm(neg_b4 ~ Group + sex + motion + scan, avgedge_allblocks_tc))
+p.adjust(c(0.320, 0.0313, 0.1816, 0.0255), method = "fdr")
+
+# sensitivity analysis controlling for baseline levels and trauma 
+summary(lm(pos_b2 ~ Group + sex + motion + scan + pos_b1 + total_5, avgedge_allblocks_tc))
+summary(lm(neg_b2 ~ Group + sex + motion + scan + neg_b1 + total_5, avgedge_allblocks_tc))
 
 ### visualize
 avgedge_allblocks_tc %>%
@@ -282,7 +294,7 @@ ggarrange(edgeplot, perm)
 
 ##### test association with depressive symptoms #####
 # PHQ9
-PHQ = read.csv("./qualtrics/StressMem fMRI Questionnaires_October 13, 2024_17.33.csv", stringsAsFactors=F)
+PHQ = read.csv("../../qualtrics/StressMem fMRI Questionnaires_October 13, 2024_17.33.csv", stringsAsFactors=F)
 PHQ = PHQ %>% select(src_subject_id, starts_with("phq")) %>% slice(-1:-3) %>%
   filter(if_all(everything(), ~ . != "")) %>%
   mutate(across(starts_with("phq"), ~ dplyr::recode(.x, 
@@ -308,7 +320,6 @@ summary(lm(PHQ ~ pos_b2, avgedge_allblocks_tc %>% filter(Group=="Control")))
 library(mgcv)
 avgedge_allblocks_tc$Group = as.factor(avgedge_allblocks_tc$Group)
 
-summary(gam(PHQ ~ s(pos_b2, by=Group) + Group, data = avgedge_allblocks_tc))
 summary(gam(PHQ ~ s(pos_b2, by=Group) + Group + s(pos_b1), data = avgedge_allblocks_tc)) # control for baseline
 summary(gam(PHQ ~ s(pos_b2, by=Group) + Group + s(pos_b1) + sex, data = avgedge_allblocks_tc)) # control for sex
 
@@ -316,6 +327,12 @@ summary(gam(PHQ ~ s(pos_b2, by=Group) + Group + s(pos_b1) + sex, data = avgedge_
 lin = (lm(PHQ ~ pos_b2 * Group + pos_b1, avgedge_allblocks_tc))
 nonlin = (gam(PHQ ~ s(pos_b2, by=Group) + Group + s(pos_b1), data = avgedge_allblocks_tc))
 AIC(lin, nonlin)
+
+# are there differences in depressive symptoms between groups?
+t.test((avgedge_allblocks_tc %>% filter(Group=="Stress"))$PHQ, (avgedge_allblocks_tc %>% filter(Group=="Control"))$PHQ, var.equal=T)
+avgedge_allblocks_tc %>% group_by(Group) %>% summarize(sd(PHQ, na.rm=T))
+t.test((avgedge_allblocks_tc %>% filter(sex==0))$PHQ, (avgedge_allblocks_tc %>% filter(sex==1))$PHQ, var.equal=T)
+avgedge_allblocks_tc %>% group_by(sex) %>% summarize(sd(PHQ, na.rm=T))
 
 # visualize
 # bar plot (median split for viz only)
@@ -344,9 +361,100 @@ phq_line = avgedge_allblocks_tc %>%
   ggplot(aes(x=pos_b2res, y=PHQ, color=Group)) + 
   geom_smooth(method="gam", formula = y ~ s(x, bs = "cs"), aes(fill = Group), alpha = 0.2) + 
   geom_point(alpha = 0.3, size=1.5) + facet_wrap(~ Group) + theme_classic() + 
-  theme(legend.position = "top") + 
+  theme(legend.position = "none") + 
   labs(x = "Post Acute Stress Positive Network FC (baseline-adjusted)", y = "PHQ", color = "Group", fill = "Group") +
   scale_color_manual(values = c("Control" = "#588b8b", "Stress" = "#f28f3b")) +
   scale_fill_manual(values = c("Stress" = "grey60", "Control" = "grey60"))
 
-ggarrange(bar_med, phq_line)
+ggarrange(bar_med, phq_line, nrow=2)
+
+
+#### PANAS change ####
+
+##### load PANAS score for subjective stress rating (to show that the stress induction worked) #####
+PANAS_pre = read.csv("../../qualtrics/StressLearn-preSECPT_October 13, 2024_17.32.csv", stringsAsFactors=F)
+PANAS_post = read.csv("../../qualtrics/StressLearn-postSECPT_October 13, 2024_17.29.csv", stringsAsFactors=F)
+describe(PANAS_pre)
+describe(PANAS_post)
+
+# create sum scores
+# neg affect: questions 2,4,6,7,8,11,13,15,18,20
+PANAS_pre[21:40] = sapply(PANAS_pre[21:40],as.numeric)
+PANAS_post[21:40] = sapply(PANAS_post[21:40],as.numeric)
+PANAS_pre = PANAS_pre[c(19,21:40)]
+PANAS_post = PANAS_post[c(19,21:40)]
+
+PANAS = full_join(PANAS_pre, PANAS_post, by="src_subject_id")
+PANAS = PANAS %>% filter(grepl("^s", src_subject_id, ignore.case = TRUE)) %>% 
+  filter(!(grepl("^s9999", src_subject_id)))
+
+PANAS$panas_pre_neg = rowMeans(PANAS[c(3,5,7,8,9,12,14,16,19,21)], na.rm=T)
+PANAS$panas_post_neg = rowMeans(PANAS[c(23, 25, 27, 28, 29, 32, 34, 36, 39, 41)], na.rm=T)
+
+PANAS$panas_change_neg = PANAS$panas_post_neg - PANAS$panas_pre_neg
+
+PANAS$sub = as.numeric(gsub("s", "", PANAS$src_subject_id))
+PANAS = left_join(PANAS, SL_cond, by="sub")
+PANAS = left_join(trauma %>% select(sub, study) %>% filter(study=="SL"), PANAS %>% select(sub, Group, panas_pre_neg, panas_post_neg, panas_change_neg))
+PANAS = PANAS[-c(50),] # remove duplicate (sub 60)
+
+PANAS %>% group_by(Group) %>% summarize(mean(panas_pre_neg,na.rm=T), sd(panas_pre_neg,na.rm=T))
+PANAS %>% group_by(Group) %>% summarize(mean(panas_post_neg,na.rm=T), sd(panas_post_neg,na.rm=T))
+PANAS %>% group_by(Group) %>% summarize(mean(panas_change_neg,na.rm=T), sd(panas_change_neg,na.rm=T))
+
+t.test((PANAS %>% filter(Group=="Stress"))$panas_change_neg, (PANAS %>% filter(Group=="Control"))$panas_change_neg, var.equal=T)
+
+# compare trauma and baseline levels between groups
+t.test((avgedge_allblocks_tc %>% filter(Group=="Stress"))$total_5, (avgedge_allblocks_tc %>% filter(Group=="Control"))$total_5, var.equal=T)
+avgedge_allblocks_tc %>% group_by(Group) %>% summarize(mean(total_5), sd(total_5))
+
+t.test((avgedge_allblocks_tc %>% filter(Group=="Stress"))$pos_b1, (avgedge_allblocks_tc %>% filter(Group=="Control"))$pos_b1, var.equal=T)
+avgedge_allblocks_tc %>% group_by(Group) %>% summarize(mean(pos_b1), sd(pos_b1))
+t.test((avgedge_allblocks_tc %>% filter(Group=="Stress"))$neg_b1, (avgedge_allblocks_tc %>% filter(Group=="Control"))$neg_b1, var.equal=T)
+avgedge_allblocks_tc %>% group_by(Group) %>% summarize(mean(neg_b1), sd(neg_b1))
+
+# cort SL ###
+sl_cort = read.csv("./SL_cort.csv")
+sl_cort$sub = sl_cort$Subject
+sl_cort_select = sl_cort %>% filter(Time == "pre-stress" | Time == "post-stress" | Time == "pre-learn" | Time == "post-learn") %>% select(sub, Time, Cortisol..nmol.l..Mean) %>%
+  pivot_wider(names_from = Time, values_from = Cortisol..nmol.l..Mean)
+sl_cort_select$cort_change1 = (sl_cort_select$`post-stress` / 27.5862) - (sl_cort_select$`pre-stress` / 27.5862) # to mcg/DL
+sl_cort_select$cort_change2 = (sl_cort_select$`pre-learn` / 27.5862) - (sl_cort_select$`pre-stress` / 27.5862) # to mcg/DL
+sl_cort_select$cort_change3 = (sl_cort_select$`post-learn` / 27.5862) - (sl_cort_select$`pre-stress` / 27.5862) # to mcg/DL
+# sl_cort_select$cort_change = (sl_cort_select$`pre-learn`) - (sl_cort_select$`pre-stress`) 
+sl_cort_select = left_join(avgedge_allblocks_tc %>% select(sub, Group), sl_cort_select)
+# exclude one very obvious outlier - sub 79
+sl_cort_select = sl_cort_select[-79,]
+
+sl_cort_select %>% group_by(Group) %>% summarize(round(mean(`pre-stress` / 27.5862, na.rm=T),2), round(sd(`pre-stress` / 27.5862, na.rm=T),2))
+sl_cort_select %>% group_by(Group) %>% summarize(round(mean(`post-stress` / 27.5862, na.rm=T),2), round(sd(`post-stress` / 27.5862, na.rm=T),2))
+sl_cort_select %>% group_by(Group) %>% summarize(round(mean(`pre-learn` / 27.5862, na.rm=T),2), round(sd(`pre-learn` / 27.5862, na.rm=T),2))
+sl_cort_select %>% group_by(Group) %>% summarize(round(mean(`post-learn` / 27.5862, na.rm=T),2), round(sd(`post-learn` / 27.5862, na.rm=T),2))
+
+sl_cort_select %>% group_by(Group) %>% summarize(round(mean(cort_change1, na.rm=T),2), round(sd(cort_change1, na.rm=T),2))
+sl_cort_select %>% group_by(Group) %>% summarize(round(mean(cort_change2, na.rm=T),2), round(sd(cort_change2, na.rm=T),2))
+sl_cort_select %>% group_by(Group) %>% summarize(round(mean(cort_change3, na.rm=T),2), round(sd(cort_change3, na.rm=T),2))
+
+# comparison
+t.test((sl_cort_select %>% filter(Group=="Stress"))$cort_change1, (sl_cort_select %>% filter(Group=="Control"))$cort_change1, var.equal=T)
+t.test((sl_cort_select %>% filter(Group=="Stress"))$cort_change2, (sl_cort_select %>% filter(Group=="Control"))$cort_change2, var.equal=T)
+t.test((sl_cort_select %>% filter(Group=="Stress"))$cort_change3, (sl_cort_select %>% filter(Group=="Control"))$cort_change3, var.equal=T)
+
+# visualize
+panas_sl = PANAS %>% 
+  ggplot(aes(x = Group, y = panas_change_neg, fill=Group)) + 
+  stat_summary(fun = mean, geom = "bar", position = position_dodge(width = 0.9), width = 0.7) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", 
+               position = position_dodge(width = 0.9), width = 0.2) + 
+  scale_fill_manual(values=c("#588b8b", "#f28f3b")) +
+  geom_point(position = position_jitter(width = 0.15), alpha = 0.15, size=1) + 
+  labs(x="Group", y=expression(Delta~"Negative Affect")) + theme_classic() + theme(legend.position="none",axis.text.x = element_blank())
+cort_sl = sl_cort_select %>% 
+  ggplot(aes(x = Group, y = cort_change2, fill=Group)) + 
+  stat_summary(fun = mean, geom = "bar", position = position_dodge(width = 0.9), width = 0.7) +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar", 
+               position = position_dodge(width = 0.9), width = 0.2) + 
+  scale_fill_manual(values=c("#588b8b", "#f28f3b")) +
+  geom_point(position = position_jitter(width = 0.15), alpha = 0.15, size=1) + 
+  labs(x="Group", y=expression(Delta~"Cortisol Levels (" * mu * "g/dL)")) + theme_classic() + theme(legend.position="none",axis.text.x = element_blank())
+ggarrange(panas_sl, cort_sl, ncol=2, nrow=1)

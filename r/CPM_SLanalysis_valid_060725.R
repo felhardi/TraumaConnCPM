@@ -1,7 +1,7 @@
 ###### apply KN posmask to sl data #####
 # load CPM sig edges (KN)
-pos_mask_kn = read.csv("./cpm/cpm_shapes/pos_mask_kn.csv", header=F)
-neg_mask_kn = read.csv("./cpm/cpm_shapes/neg_mask_kn.csv", header=F)
+pos_mask_kn = read.csv("../net_masks/pos_mask_kn.csv", header=F)
+neg_mask_kn = read.csv("../net_masks/neg_mask_kn.csv", header=F)
 # create matrix of just the upper triangle
 pos_edges_kn = data.frame(which(pos_mask_kn == 1 & upper.tri(pos_mask_kn, diag = FALSE), arr.ind = TRUE))
 neg_edges_kn = data.frame(which(neg_mask_kn == 1 & upper.tri(neg_mask_kn, diag = FALSE), arr.ind = TRUE))
@@ -9,7 +9,7 @@ colnames(pos_edges_kn) = c("col1","col2")
 colnames(neg_edges_kn) = c("col1","col2")
 
 # put labels with sig edges
-labels = read.csv("./misc/xilin_liz_combined.csv")
+labels = read.csv("./xilin_liz_combined.csv")
 net_map = setNames(labels$net_names, labels$node)
 roi_map = setNames(labels$BA_othername, labels$node)
 sigedges_pos_kn = pos_edges_kn %>% 
@@ -83,7 +83,7 @@ block3_neg$neg_edgestr_block3 = rowMeans(block3_neg)
 block4_neg$neg_edgestr_block4 = rowMeans(block4_neg)
 
 # create a combined data frame with all the summary edge
-subid_sl = read.csv("./dfs/subid_sl.csv")
+subid_sl = read.csv("./subid_sl.csv")
 avgedge_allblocks_kn =
   as.data.frame(cbind(subid_sl,
                       block1_pos$pos_edgestr_block1, block2_pos$pos_edgestr_block2, block3_pos$pos_edgestr_block3, block4_pos$pos_edgestr_block4,
@@ -206,6 +206,10 @@ avgedge_allblocks_shapes$scan = ifelse(avgedge_allblocks_shapes$sub > 55, 1, 0) 
 ####################################
 ####################################
 ##### main sl analysis #####
+t.test((avgedge_allblocks_tc %>% filter(Group=="Stress"))$pos_b2, (avgedge_allblocks_tc %>% filter(Group=="Control"))$pos_b2, var.equal=T)
+t.test((avgedge_allblocks_kn %>% filter(Group=="Stress"))$pos_b2, (avgedge_allblocks_kn %>% filter(Group=="Control"))$pos_b2, var.equal=T)
+t.test((avgedge_allblocks_shapes %>% filter(Group=="Stress"))$pos_b2, (avgedge_allblocks_shapes %>% filter(Group=="Control"))$pos_b2, var.equal=T)
+
 summary(lm(pos_b2 ~ Group + motion + as.factor(sex) + as.factor(scan), avgedge_allblocks_tc))
 summary(lm(pos_b2 ~ Group + motion + as.factor(sex) + as.factor(scan), avgedge_allblocks_kn))
 summary(lm(pos_b2 ~ Group + motion + as.factor(sex) + as.factor(scan), avgedge_allblocks_shapes))
